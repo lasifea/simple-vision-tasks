@@ -1,0 +1,7 @@
+# 推荐使用Python>=3.8，补丁版本越高越好
+
+onnxruntime
+# if you use cuda
+# onnxruntime-gpu
+
+opencv-python
