@@ -1,7 +1,10 @@
 # 推荐使用Python>=3.8，补丁版本越高越好
 
 onnxruntime
-# if you use cuda
+# 如果有Nvidia显卡且本地安装了cuda (if you want to use cuda)
 # onnxruntime-gpu
 
 opencv-python
+
+# 如果想使用paddleocr (if you want to use paddleocr)
+# pyclipper
