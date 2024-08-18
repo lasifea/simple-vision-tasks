@@ -1,17 +1,16 @@
 # 本代码由lasifea编写，参考文档地址：https://github.com/PaddlePaddle/PaddleOCR，https://github.com/hpc203/PaddleOCR-v3-onnxrun-cpp-py
 # 适用于文字识别
-# 首次完成时间于2024-01-28，最后修改时间于2024-08-13
+# 首次完成时间于2024-01-28，最后修改时间于2024-08-18
 
-from onnxruntime import SessionOptions, InferenceSession
 import cv2
 import numpy as np
 from pyclipper import PyclipperOffset, JT_ROUND, ET_CLOSEDPOLYGON
 from math import ceil
 from typing import Union, Tuple, Iterator, Optional, List
-from .helpers import read_image
+from .helpers import read_image, BaseVisionTask
 
 
-class TextDetector:
+class TextDetector(BaseVisionTask):
     def __init__(self, model_path: str,
                  min_score: float = 0.6,
                  thread_num: int = 2,
@@ -23,20 +22,8 @@ class TextDetector:
         :param thread_num: 线程数量，默认2个线程
         :param use_gpu: 是否使用显卡推理，目前仅支持cuda
         """
-        if use_gpu:
-            import os
-            os.environ['CUDA_MODULE_LOADING'] = 'LAZY'
-            providers = ('CUDAExecutionProvider', 'CPUExecutionProvider')
-        else:
-            providers = ('CPUExecutionProvider',)
+        super().__init__(model_path, thread_num, use_gpu)
 
-        options = SessionOptions()
-        options.log_severity_level = 3
-        if thread_num > 0:
-            options.intra_op_num_threads = thread_num
-
-        self.model = InferenceSession(model_path, providers=providers, sess_options=options)
-        self.input_name = self.model.get_inputs()[0].name
         self._limit_side_len = 960
         self._input_mean = np.float32([0.485, 0.456, 0.406]).reshape((1, 1, 3))
         self._input_std = np.float32([0.229, 0.224, 0.225]).reshape((1, 1, 3))
@@ -45,12 +32,6 @@ class TextDetector:
         self.box_threshold = min_score
         self.max_candidates = 1000
         self.expansion_ratio = 1.6
-
-        self._author = 'lasifea'
-        self._email = 'lasifea@163.com'
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
 
     def _preprocess(self, img_obj: Union[str, bytes, np.ndarray]) -> Tuple[np.ndarray, np.ndarray, int, int]:
         """
@@ -163,7 +144,7 @@ class TextDetector:
             yield warp_img
 
 
-class TextClassifier:
+class TextClassifier(BaseVisionTask):
     def __init__(self, model_path: str,
                  cls_threshold: float = 0.9,
                  thread_num: int = 2,
@@ -175,31 +156,13 @@ class TextClassifier:
         :param thread_num: 线程数量，默认2个线程
         :param use_gpu: 是否使用显卡推理，目前仅支持cuda
         """
-        if use_gpu:
-            import os
-            os.environ['CUDA_MODULE_LOADING'] = 'LAZY'
-            providers = ('CUDAExecutionProvider', 'CPUExecutionProvider')
-        else:
-            providers = ('CPUExecutionProvider',)
+        super().__init__(model_path, thread_num, use_gpu)
 
-        options = SessionOptions()
-        options.log_severity_level = 3
-        if thread_num > 0:
-            options.intra_op_num_threads = thread_num
-
-        self.model = InferenceSession(model_path, providers=providers, sess_options=options)
         self.cls_threshold = cls_threshold
-        self.input_name = self.model.get_inputs()[0].name
         self._input_size = (3, 48, 192)
         self._labels = (0, 180)
         self._input_mean = 127.5
         self._input_std = 127.5
-
-        self._author = 'lasifea'
-        self._email = 'lasifea@163.com'
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
 
     def _preprocess(self, img_obj: Union[str, bytes, np.ndarray]) -> np.ndarray:
         """
@@ -250,7 +213,7 @@ class TextClassifier:
         return self._postprocess(outputs)
 
 
-class TextRecognizer:
+class TextRecognizer(BaseVisionTask):
     def __init__(self, model_path: str,
                  text_path: str,
                  rec_threshold: float = 0.5,
@@ -264,32 +227,14 @@ class TextRecognizer:
         :param thread_num: 线程数量，默认2个线程
         :param use_gpu: 是否使用显卡推理，目前仅支持cuda
         """
-        if use_gpu:
-            import os
-            os.environ['CUDA_MODULE_LOADING'] = 'LAZY'
-            providers = ('CUDAExecutionProvider', 'CPUExecutionProvider')
-        else:
-            providers = ('CPUExecutionProvider',)
+        super().__init__(model_path, thread_num, use_gpu)
 
-        options = SessionOptions()
-        options.log_severity_level = 3
-        if thread_num > 0:
-            options.intra_op_num_threads = thread_num
-
-        self.model = InferenceSession(model_path, providers=providers, sess_options=options)
         self.rec_threshold = rec_threshold
-        self.input_name = self.model.get_inputs()[0].name
         self._input_size = (3, 48, 320)
         self._input_mean = 127.5
         self._input_std = 127.5
         with open(text_path, 'r', encoding='utf8') as f:
             self._texts = f.read().replace('\n', '') + ' '
-
-        self._author = 'lasifea'
-        self._email = 'lasifea@163.com'
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
 
     def _preprocess(self, img_obj: Union[str, bytes, np.ndarray]) -> np.ndarray:
         """
@@ -413,7 +358,7 @@ def main():
                        args.use_gpu, args.save_warp_img)
     start = time.time()
     results = ocr(args.input_image)
-    print(f'图片检测总用时：{time.time()-start} s')
+    print(f'文字识别总用时：{time.time()-start} s')
     print(results)
 
 

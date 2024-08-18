@@ -1,12 +1,11 @@
 # 本代码由lasifea编写，参考文档地址：https://github.com/deepinsight/insightface，模型来自insightface
 # 适用于insightface开源人脸检测的onnx模型做推理
-# 首次完成时间于2024-06-08，最后修改时间于2024-06-13
+# 首次完成时间于2024-06-08，最后修改时间于2024-08-18
 
-from onnxruntime import InferenceSession, SessionOptions
 import cv2
 import numpy as np
 from typing import Union, Tuple, List
-from .helpers import read_image
+from .helpers import read_image, BaseVisionTask
 
 
 def distance2bbox(points, distance, max_shape=None):
@@ -57,7 +56,7 @@ def distance2kps(points, distance, max_shape=None):
     return np.stack(preds, axis=-1)
 
 
-class FaceDetector:
+class FaceDetector(BaseVisionTask):
     def __init__(self,
                  model_path: str,
                  max_face_num: int = 100,
@@ -70,20 +69,7 @@ class FaceDetector:
         :param thread_num: 线程数量，默认2个线程
         :param use_gpu: 是否使用显卡推理，目前仅支持cuda
         """
-        if use_gpu:
-            import os
-            os.environ['CUDA_MODULE_LOADING'] = 'LAZY'
-            providers = ('CUDAExecutionProvider', 'CPUExecutionProvider')
-        else:
-            providers = ('CPUExecutionProvider',)
-
-        options = SessionOptions()
-        options.log_severity_level = 3
-        if thread_num > 0:
-            options.intra_op_num_threads = thread_num
-
-        self.model = InferenceSession(model_path, providers=providers, sess_options=options)
-        self.input_name = self.model.get_inputs()[0].name
+        super().__init__(model_path, thread_num, use_gpu)
         self.max_face_num = max_face_num
 
         self._box_side = 640
@@ -94,12 +80,6 @@ class FaceDetector:
         self._num_anchors = 2
         self._fmc = 3
         self._feat_stride_fpn = (8, 16, 32)
-
-        self._author = 'lasifea'
-        self._email = 'lasifea@163.com'
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
 
     def _preprocess(self, img_obj: Union[str, bytes, np.ndarray]) -> Tuple[np.ndarray, float]:
         """

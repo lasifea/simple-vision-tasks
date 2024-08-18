@@ -1,12 +1,11 @@
 # 本代码由lasifea编写，参考文档地址：https://github.com/deepinsight/insightface，模型来自insightface
 # 适用于insightface开源人脸识别的onnx模型做推理
-# 首次完成时间于2024-06-13，最后修改时间于2024-06-17
+# 首次完成时间于2024-06-13，最后修改时间于2024-08-18
 
-from onnxruntime import InferenceSession, SessionOptions
 import cv2
 import numpy as np
 from typing import Union, Tuple
-from .helpers import read_image
+from .helpers import read_image, BaseVisionTask
 
 
 def one2one(embedding: np.ndarray, embedding2: np.ndarray) -> float:
@@ -17,7 +16,7 @@ def one2one(embedding: np.ndarray, embedding2: np.ndarray) -> float:
     :return: 特征相似度
     """
     sim = np.dot(embedding, embedding2) / (np.linalg.norm(embedding) * np.linalg.norm(embedding2))
-    return sim
+    return float(sim)
 
 
 def one2many(unknown_embedding: np.ndarray, know_embeddings: np.ndarray) -> Tuple[int, float]:
@@ -32,10 +31,10 @@ def one2many(unknown_embedding: np.ndarray, know_embeddings: np.ndarray) -> Tupl
     arr /= arr2
 
     sim_idx = np.argmax(arr)
-    return sim_idx, arr[sim_idx]
+    return int(sim_idx), float(arr[sim_idx])
 
 
-class FaceRecognizer:
+class FaceRecognizer(BaseVisionTask):
     def __init__(self,  model_path: str, thread_num: int = 2, use_gpu: bool = False):
         """
         脸部特征提取
@@ -43,32 +42,13 @@ class FaceRecognizer:
         :param thread_num: 线程数量，默认2个线程
         :param use_gpu: 是否使用显卡推理，目前仅支持cuda
         """
-        if use_gpu:
-            import os
-            os.environ['CUDA_MODULE_LOADING'] = 'LAZY'
-            providers = ('CUDAExecutionProvider', 'CPUExecutionProvider')
-        else:
-            providers = ('CPUExecutionProvider',)
-
-        options = SessionOptions()
-        options.log_severity_level = 3
-        if thread_num > 0:
-            options.intra_op_num_threads = thread_num
-
-        self.model = InferenceSession(model_path, providers=providers, sess_options=options)
-        self.input_name = self.model.get_inputs()[0].name
+        super().__init__(model_path, thread_num, use_gpu)
 
         self._box_side = 112
         self._arcface_dst = np.float32(
             [[38.2946, 51.6963], [73.5318, 51.5014], [56.0252, 71.7366], [41.5493, 92.3655], [70.7299, 92.2041]])
         self._input_mean = 127.5
         self._input_std = 127.5
-
-        self._author = 'lasifea'
-        self._email = 'lasifea@163.com'
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
 
     def _preprocess(self, img_obj: Union[str, bytes, np.ndarray], face_5points: np.ndarray) -> np.ndarray:
         """
